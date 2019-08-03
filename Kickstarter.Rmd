@@ -1,0 +1,191 @@
+---
+title: "Kickstarter Projects"
+author: "Skinny Snakes"
+date: "4/11/2018"
+output: html_document
+---
+
+```{r}
+
+setwd("C:/Users/arboc/OneDrive/Documents/Rprogram/project")
+kickdata=read.csv('ks-projects-201801.csv')
+
+#Getting an overview of the dataset
+str(kickdata)
+
+# Checking for N.A values in dataset
+apply(kickdata, 2, function(x) any(is.na(x)))
+
+#Checking for number of N.A values 
+sapply(kickdata, function(x) sum(is.na(x)))
+
+#After going through the column values we found out that usd.pledged and usd_pledged_real have the same data so we remove the column usd.pledged as part of Data Cleaning Process. 
+kickdata<-within(kickdata, rm(usd.pledged))
+require(dplyr)
+colnames(kickdata)[13]<-"usd_pledge"
+
+#Dividing the Launched column into Launch date and Launch time for making it easy for analysis
+new <- do.call( rbind , strsplit( as.character( kickdata$launched ) , " " ) )
+kickdata<-cbind( kickdata , Launch_Time = new[,2] , Launch_date = new[,1] )
+
+#Removing the extra column which we wont be needing
+kickdata1<- kickdata[ -c(8) ]
+kickdata<-kickdata1
+
+# Added an extra column as Duration which is difference between the deadline and the launchdate as it is required for analysis
+x <- as.Date(as.character(kickdata$deadline), format="%Y-%m-%d")-
+                  as.Date(as.character(kickdata$Launch_date), format="%Y-%m-%d")
+y<- data.frame(kickdata$deadline, kickdata$Launch_date, Duration =x )
+kickdata<-cbind(kickdata ,Duration=x)
+
+#Adding the rank ....................................................
+kickdata<-kickdata%>% group_by(category)%>%mutate(rank = rank(Launch_date))
+#kickdata
+```
+BASIC EXPLORATORY ANALYSIS 
+
+```{r}
+#Checking States of Projects - 
+table(kickdata$state)/length(kickdata$state)*100
+#Failed and successful are the two main states comprising of ~88% among the dataset 
+
+#Checking which category has maximum number of backers
+library(scales)
+library(ggplot2)
+x<-aggregate(kickdata$backers,list(kickdata$main_category,kickdata$state),mean)
+colnames(x)[2]<-"state"
+colnames(x)[1]<-"main_category"
+colnames(x)[3]<-"backers"
+l<-subset(x,state=="successful"|state=="failed")
+x= ggplot(data = l, aes(x = main_category, y= backers, fill = state)) + ylab("Average number of backers")+ xlab("Categories")+
+    geom_bar(stat= "identity",position = "dodge") + scale_y_continuous(labels = comma)
+q<-x + theme(axis.text.x = element_text(face="bold", color="#993333", 
+                           size=10, angle=90),
+          axis.text.y = element_text(face="bold", color="#993333", 
+                           size=10, angle=0))
+q
+#From this output we can conclude that games category has the most number of backers hence we can set the goal for projects higher in this category. 
+```
+
+
+
+```{r}
+library(lattice)
+library(ggplot2)
+
+# To calculate number of projects in each category
+x<-data.frame(table(kickdata$main_category))
+ggplot(x, aes(x$Var1, x$Freq,fill=x$Var1))+ xlab("Categories") + ylab("Numberof Project") + theme(axis.text.x=element_text(angle=90,hjust=1)) + geom_col() 
+# From this we can conclude flim and video has highest number of projects
+```
+To find duration of failed and successful projects by category- This helps us make us inference that by keeping short deadlines of the project reaching to its goal has higher chances. 
+
+```{r}
+successful = subset(kickdata,state=="successful")
+failed = subset(kickdata,state=="failed")
+
+successfuldf = aggregate(successful[, 16], list(successful$main_category,successful$state), mean)
+faileddf = aggregate(failed[, 16], list(failed$main_category,failed$state), mean)
+
+durationData=rbind(successfuldf, faileddf)
+colnames(durationData)[1]<-"category"
+colnames(durationData)[2]<-"state"
+colnames(durationData)[3]<-"duration"
+durationData
+ggplot(data=durationData, aes(x=category, y=duration, fill=state)) +
+  geom_bar(stat="identity",position=position_dodge()) +
+  theme(axis.text.x=element_text(angle=90,hjust=1))+
+  scale_fill_manual("state", values = c("failed" = "purple", "successful" = "black"))
+
+```
+
+Goal Amount of successfuls project by main category
+```{r}
+ggplot(successful, aes(main_category, goal, fill=main_category)) + geom_boxplot() + 
+  ggtitle("Goal vs. Project Category") + xlab("Project Category") + 
+  ylab("Goal (USD)") + 
+  theme(plot.title=element_text(size=15, face="bold", hjust=0.5), 
+        axis.title=element_text(size=12, face="bold"), 
+        axis.text.x=element_text(size=12, angle=90), legend.position="null") + 
+  coord_cartesian(ylim=c(0,9000000))
+```
+
+Goal amount of failed projects by category
+```{r}
+ggplot(failed, aes(main_category, goal, fill=main_category)) + geom_boxplot() + 
+  ggtitle("Goal vs. Project Category") + xlab("Project Category") + 
+  ylab("Goal (USD)") + 
+  theme(plot.title=element_text(size=10, face="bold", hjust=0.5), 
+        axis.title=element_text(size=12, face="bold"), 
+        axis.text.x=element_text(size=10, angle=90), legend.position="null") + 
+  coord_cartesian(ylim=c(0,9000000))
+```
+Goal Amount of successful project by main category - Zoomed in
+```{r}
+ggplot(successful, aes(main_category, goal, fill=main_category)) + geom_boxplot() + 
+  ggtitle("Goal vs. Project Category") + xlab("Project Category") + 
+  ylab("Goal (USD)") + 
+  theme(plot.title=element_text(size=15, face="bold", hjust=0.5), 
+        axis.title=element_text(size=12, face="bold"), 
+        axis.text.x=element_text(size=12, angle=90), legend.position="null") + 
+  coord_cartesian(ylim=c(0,50000))
+```
+
+Goal Amount of failed project by main category - Zoomed in
+```{r}
+ggplot(failed, aes(main_category, goal, fill=main_category)) + geom_boxplot() + 
+  ggtitle("Goal vs. Project Category") + xlab("Project Category") + 
+  ylab("Goal (USD)") + 
+  theme(plot.title=element_text(size=10, face="bold", hjust=0.5), 
+        axis.title=element_text(size=12, face="bold"), 
+        axis.text.x=element_text(size=10, angle=90), legend.position="null") + 
+  coord_cartesian(ylim=c(0,50000))
+```
+
+Novelty of the project
+Does project novelty determince success?
+Let us compare for each sub category in Technology.
+First 25% vs later 75%
+
+```{r}
+tech <- subset(kickdata, main_category=="Technology")
+tech <- subset(tech, state=="successful"|state=="failed")
+techTally<-tech %>% group_by(category) %>% tally()
+
+techTally$n<-techTally$n/4
+newTech<-merge(tech,techTally)
+firstSet<-subset(newTech,rank<n)
+nfirst<-firstSet %>% group_by(category) %>% count()
+temp<-firstSet %>% group_by(category,state) %>% count()
+s<-subset(temp,state=="successful")
+x<-merge(nfirst,s,by="category")
+x$state<-(x$nn.y/x$nn.x)*100
+colnames(x)[3]<-"successRate"
+first25Sucess<-x[,-c(2,4)]
+
+
+
+techTally$n<-techTally$n/4
+newTech<-merge(tech,techTally)
+firstSet<-subset(newTech,rank>=n)
+nfirst<-firstSet %>% group_by(category) %>% count()
+temp<-firstSet %>% group_by(category,state) %>% count()
+s<-subset(temp,state=="successful")
+x<-merge(nfirst,s,by="category")
+x$state<-(x$nn.y/x$nn.x)*100
+colnames(x)[3]<-"successRate"
+last75Success<-x[,-c(2,4)]
+
+first25Sucess$var<-"first25"
+last75Success$var<-"last75"
+
+
+novelty<-rbind(first25Sucess,last75Success)
+novelty
+
+ggplot(data=novelty, aes(x=category, y=successRate, fill=var)) +
+  geom_bar(stat="identity",position=position_dodge()) +
+  theme(axis.text.x=element_text(angle=90,hjust=1))+
+scale_fill_manual("var", values = c("first25" = "black", "last75" = "blue"))
+```
+Thus we can conclude that the success rate of most of the technical projects depend on the novelty of the project whereas for Gadgets and Wearbles it is the opposite, they get better with time. 
