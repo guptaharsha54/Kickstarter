@@ -1,30 +1,31 @@
 ---
-title: "Kickstarter Projects"
+title: "Kickstarter Project"
 author: "Skinny Snakes"
-date: "4/11/2018"
+date: "11 May 2018"
 output: html_document
 ---
-
+Step1 - Loading and Cleaning the Dataset 
 ```{r}
-
+#Set the working directory and upload the dataset to R - 
 setwd("C:/Users/arboc/OneDrive/Documents/Rprogram/project")
 kickdata=read.csv('ks-projects-201801.csv')
 
 #Getting an overview of the dataset
-str(kickdata)
+#str(kickdata)
 
-# Checking for N.A values in dataset
-apply(kickdata, 2, function(x) any(is.na(x)))
+# Checking for N.A values in the dataset
+#apply(kickdata, 2, function(x) any(is.na(x)))
 
 #Checking for number of N.A values 
-sapply(kickdata, function(x) sum(is.na(x)))
+#sapply(kickdata, function(x) sum(is.na(x)))
 
-#After going through the column values we found out that usd.pledged and usd_pledged_real have the same data so we remove the column usd.pledged as part of Data Cleaning Process. 
+#After going through the column values we found out that usd.pledged and usd_pledged_real have the same data so we remove the column usd.pledged as part of the Data Cleaning Process. 
 kickdata<-within(kickdata, rm(usd.pledged))
+#install.packages("dplyr")
 require(dplyr)
 colnames(kickdata)[13]<-"usd_pledge"
 
-#Dividing the Launched column into Launch date and Launch time for making it easy for analysis
+#Dividing the Launched column into Launch date and Launch time for making it easy for analysis and also so that we can plot variations over time. 
 new <- do.call( rbind , strsplit( as.character( kickdata$launched ) , " " ) )
 kickdata<-cbind( kickdata , Launch_Time = new[,2] , Launch_date = new[,1] )
 
@@ -32,55 +33,55 @@ kickdata<-cbind( kickdata , Launch_Time = new[,2] , Launch_date = new[,1] )
 kickdata1<- kickdata[ -c(8) ]
 kickdata<-kickdata1
 
-# Added an extra column as Duration which is difference between the deadline and the launchdate as it is required for analysis
+# Added an extra column as Duration which is difference between the deadline and the launchdate as it is required for exploratory analysis
 x <- as.Date(as.character(kickdata$deadline), format="%Y-%m-%d")-
                   as.Date(as.character(kickdata$Launch_date), format="%Y-%m-%d")
 y<- data.frame(kickdata$deadline, kickdata$Launch_date, Duration =x )
 kickdata<-cbind(kickdata ,Duration=x)
 
-#Adding the rank ....................................................
+#Adding the Rank column which will signify the projects novelty belonging to a particular categories 
 kickdata<-kickdata%>% group_by(category)%>%mutate(rank = rank(Launch_date))
 #kickdata
 ```
-BASIC EXPLORATORY ANALYSIS 
-
+STEP - 2 BASIC EXPLORATORY ANALYSIS to study our dataset and make certain inferences and get fruitful insights  
 ```{r}
-#Checking States of Projects - 
+#Checking States of Projects / How many projects are successful/failed/other? 
 table(kickdata$state)/length(kickdata$state)*100
-#Failed and successful are the two main states comprising of ~88% among the dataset 
+#Inference - Failed and successful are the two main states comprising of ~88% among the dataset 
+
 
 #Checking which category has maximum number of backers
+#install.packages("scales")
+#install.packages("ggplot2")
 library(scales)
 library(ggplot2)
-x<-aggregate(kickdata$backers,list(kickdata$main_category,kickdata$state),mean)
+x<-aggregate(kickdata$backers,list(kickdata$main_category,kickdata$state),median)
 colnames(x)[2]<-"state"
 colnames(x)[1]<-"main_category"
 colnames(x)[3]<-"backers"
 l<-subset(x,state=="successful"|state=="failed")
 x= ggplot(data = l, aes(x = main_category, y= backers, fill = state)) + ylab("Average number of backers")+ xlab("Categories")+
-    geom_bar(stat= "identity",position = "dodge") + scale_y_continuous(labels = comma)
+    geom_bar(stat= "identity") + scale_y_continuous(labels = comma)
 q<-x + theme(axis.text.x = element_text(face="bold", color="#993333", 
                            size=10, angle=90),
           axis.text.y = element_text(face="bold", color="#993333", 
                            size=10, angle=0))
 q
-#From this output we can conclude that games category has the most number of backers hence we can set the goal for projects higher in this category. 
+#Inference that we can draw from this output is that GAMES category kickstarter projects have the most number of average backers hence we can set the goal for projects higher in this category. Also we can get an idea of the success and failures ratios in each project .  
 ```
-
-
-
 ```{r}
 library(lattice)
 library(ggplot2)
 
-# To calculate number of projects in each category
+tech <- subset(kickdata, main_category=="Technology")
+#xyplot(kickdata$backers~tech)
+#Getting a brief idea of the number of projects in each category
 x<-data.frame(table(kickdata$main_category))
 ggplot(x, aes(x$Var1, x$Freq,fill=x$Var1))+ xlab("Categories") + ylab("Numberof Project") + theme(axis.text.x=element_text(angle=90,hjust=1)) + geom_col() 
-# From this we can conclude flim and video has highest number of projects
+# Inference From this which we can say is film and video has the highest number of projects on kickstarter and Journalism has the least so if anyone doesn't want much competition for their kickstarter they can know which domain is most competitive.
 ```
-To find duration of failed and successful projects by category- This helps us make us inference that by keeping short deadlines of the project reaching to its goal has higher chances. 
-
 ```{r}
+kickdata$Duration = as.numeric(as.difftime(kickdata$Duration))
 successful = subset(kickdata,state=="successful")
 failed = subset(kickdata,state=="failed")
 
@@ -91,15 +92,14 @@ durationData=rbind(successfuldf, faileddf)
 colnames(durationData)[1]<-"category"
 colnames(durationData)[2]<-"state"
 colnames(durationData)[3]<-"duration"
-durationData
 ggplot(data=durationData, aes(x=category, y=duration, fill=state)) +
   geom_bar(stat="identity",position=position_dodge()) +
   theme(axis.text.x=element_text(angle=90,hjust=1))+
   scale_fill_manual("state", values = c("failed" = "purple", "successful" = "black"))
 
-```
+#Studying the duration of failed and successful projects by category- We observed that This helps us make us inference that by keeping short deadlines of kickstarter project reaching to the set goal has a higher chance. 
 
-Goal Amount of successfuls project by main category
+```
 ```{r}
 ggplot(successful, aes(main_category, goal, fill=main_category)) + geom_boxplot() + 
   ggtitle("Goal vs. Project Category") + xlab("Project Category") + 
@@ -108,20 +108,10 @@ ggplot(successful, aes(main_category, goal, fill=main_category)) + geom_boxplot(
         axis.title=element_text(size=12, face="bold"), 
         axis.text.x=element_text(size=12, angle=90), legend.position="null") + 
   coord_cartesian(ylim=c(0,9000000))
-```
+# Getting an overview of the Goal amount which was set by Succesful Projects 
 
-Goal amount of failed projects by category
-```{r}
-ggplot(failed, aes(main_category, goal, fill=main_category)) + geom_boxplot() + 
-  ggtitle("Goal vs. Project Category") + xlab("Project Category") + 
-  ylab("Goal (USD)") + 
-  theme(plot.title=element_text(size=10, face="bold", hjust=0.5), 
-        axis.title=element_text(size=12, face="bold"), 
-        axis.text.x=element_text(size=10, angle=90), legend.position="null") + 
-  coord_cartesian(ylim=c(0,9000000))
-```
-Goal Amount of successful project by main category - Zoomed in
-```{r}
+#Lets see a Zoomed in version of the graph 
+
 ggplot(successful, aes(main_category, goal, fill=main_category)) + geom_boxplot() + 
   ggtitle("Goal vs. Project Category") + xlab("Project Category") + 
   ylab("Goal (USD)") + 
@@ -130,8 +120,6 @@ ggplot(successful, aes(main_category, goal, fill=main_category)) + geom_boxplot(
         axis.text.x=element_text(size=12, angle=90), legend.position="null") + 
   coord_cartesian(ylim=c(0,50000))
 ```
-
-Goal Amount of failed project by main category - Zoomed in
 ```{r}
 ggplot(failed, aes(main_category, goal, fill=main_category)) + geom_boxplot() + 
   ggtitle("Goal vs. Project Category") + xlab("Project Category") + 
@@ -139,15 +127,23 @@ ggplot(failed, aes(main_category, goal, fill=main_category)) + geom_boxplot() +
   theme(plot.title=element_text(size=10, face="bold", hjust=0.5), 
         axis.title=element_text(size=12, face="bold"), 
         axis.text.x=element_text(size=10, angle=90), legend.position="null") + 
+  coord_cartesian(ylim=c(0,9000000))
+#Getting an overview of the Goal amount which was set by Succesful Projects
+
+#Getting a zoomed in plot of the above graph
+
+ggplot(failed, aes(main_category, goal, fill=main_category)) + geom_boxplot() + 
+  ggtitle("Goal vs. Project Category") + xlab("Project Category") + 
+  ylab("Goal (USD)") + 
+  theme(plot.title=element_text(size=10, face="bold", hjust=0.5), 
+        axis.title=element_text(size=12, face="bold"), 
+        axis.text.x=element_text(size=10, angle=90), legend.position="null") + 
   coord_cartesian(ylim=c(0,50000))
+
+#From this we draw the following inference that Goal amount set by projects who were succesful was not as high as the goal amount set by Failed projects. We clearly observed more outliers in failed projects which had their goal amount > 2.5 million USD. Hence we can make the inference that kickstarter projects Goals should lie below 2.5 million USD to begin with to add to their success rate . 
 ```
-
-Novelty of the project
-Does project novelty determince success?
-Let us compare for each sub category in Technology.
-First 25% vs later 75%
-
 ```{r}
+#Studying if novelty of a kickstarter project wheather or not it has an impact on the success rate from the main category of TECHNOLOGY - 
 tech <- subset(kickdata, main_category=="Technology")
 tech <- subset(tech, state=="successful"|state=="failed")
 techTally<-tech %>% group_by(category) %>% tally()
@@ -163,8 +159,6 @@ x$state<-(x$nn.y/x$nn.x)*100
 colnames(x)[3]<-"successRate"
 first25Sucess<-x[,-c(2,4)]
 
-
-
 techTally$n<-techTally$n/4
 newTech<-merge(tech,techTally)
 firstSet<-subset(newTech,rank>=n)
@@ -178,14 +172,273 @@ last75Success<-x[,-c(2,4)]
 
 first25Sucess$var<-"first25"
 last75Success$var<-"last75"
-
-
 novelty<-rbind(first25Sucess,last75Success)
-novelty
-
+#novelty
 ggplot(data=novelty, aes(x=category, y=successRate, fill=var)) +
   geom_bar(stat="identity",position=position_dodge()) +
   theme(axis.text.x=element_text(angle=90,hjust=1))+
 scale_fill_manual("var", values = c("first25" = "black", "last75" = "blue"))
+
+#From the plot we can make an inference that apart from Gadgets and wearables the rest of the categories in Technology do have a higher success Ratio . Also we can confirm this by justifying this logically - Gadgets and wearables get better with new updates and next generations and hence the explanation. 
 ```
-Thus we can conclude that the success rate of most of the technical projects depend on the novelty of the project whereas for Gadgets and Wearbles it is the opposite, they get better with time. 
+STEP 3-  Doing Predictive Analysis to determine project success rate in kickstarter 
+```{r}
+#First we need to prepare a fresh data frame containing the input variables for the model 
+#Creating a new data.frame called kickstart which will contain only the successful and the failed kickstarter projects since our dataset compromises ~ 90 of only those states : - 
+#kickstart <- subset(kickdata, state == "failed" | state == "successful")
+#kickstart$state<-factor(kickstart$state)
+#We get a dataframe with 331675 obs. of  17 variables:
+#Again we filter this dataset furthur by removing 
+#1. ID - not releveant for prediction
+#2.name - not releveant for prediction
+#3.(goal and pledged) since we are using their USD equivalent which are -  USD_GOAL and USD_pledged,
+#4. Launch time , Launch date ,  deadline since we converted these columns usage to Duration  
+#5. state column which we will save in a new varibale called outcome 
+
+kick<-kickstart[-c(1,2,3,6,7,8,9,14,15)]
+#str(kick)
+#Converting every categorical variable to numerical 
+library(dplyr)
+kick <- kick %>% mutate_if(is.factor, as.numeric)
+str(kick)
+```
+```{r}
+#Installing the Caret package and Preprocessing dataset for analysis 
+#installed.packages("caret")
+#install.packages(c('skimr', 'RANN', 'randomForest', 'fastAdaboost', 'gbm', 'xgboost', 'caretEnsemble', 'C50', 'earth'))
+
+library(caret)
+#Also, we'll scale and center the numerical data by using the convenient preprocess() in Caret.
+preProcValues <- preProcess(kick, method = c("center","scale"))
+
+install.packages("RANN")
+library('RANN')
+train_processed <- predict(preProcValues, kick)
+sum(is.na(train_processed))
+#Adding the state variable
+state<-kickstart$state
+kick<-data.frame(kick,state)
+train_processed<-data.frame(train_processed,state)
+
+#Checking the structure and summary of processed training file - 
+summary(train_processed)
+```
+```{r}
+#Splitting of processed train_data into training set and testing set .We'll use createDataPartition() to split our training data into two sets : 80% and 20%. Since, our outcome variable is categorical in nature, this function will make sure that the distribution of outcome variable classes will be similar in both the sets.
+index <- createDataPartition(train_processed$state, p=0.8, list=FALSE)
+trainSet <- train_processed[ index,]
+testSet <- train_processed[-index,]
+
+
+dim(trainSet)
+dim(testSet)
+#As we see our training model has 265,341 observations and our test data has 66,334 observations , training a model on such large number of observations takes considerable amount of time .Hence for saving time we  
+#USING THE FIRST 10,000 OBSERVATIONS from Trainingset and First 500 OBSERVATIONS FROM TESTING SET TO SAVE TIME RUNNING ON THE PC - 
+trainSet1<-trainSet[1:10000,]
+testSet1<-testSet[1:2000,]
+```
+
+```{r}
+#this chunk takes aproxx 10 mins to run so output is displayed in commented format from line 254 -  
+#Before moving furthur we can also utilize 'Recursive Feature Elimination' which is a wrapper method 
+#to find the best subset of features to use for our modeling.
+#install.packages(c('skimr', 'RANN', 'randomForest', 'fastAdaboost', 'gbm', 'xgboost', 'caretEnsemble', 'C50', 'earth'))
+#install.packages('e1071')
+require("e1071")
+library(caret)
+control <-rfeControl(functions = rfFuncs,
+                   method = "repeatedcv",
+                   repeats = 3,
+                   verbose = FALSE)
+outcomeName<-'state'
+predictors<-names(trainSet1)[!names(trainSet1) %in% outcomeName]
+State_Pred_Profile <- rfe(trainSet1[,predictors], trainSet1[,outcomeName],
+                      rfeControl = control)
+State_Pred_Profile
+# Recursive feature selection
+# 
+# Outer resampling method: Cross-Validated (10 fold, repeated 3 times) 
+# 
+# Resampling performance over subset size:
+# 
+#  Variables Accuracy  Kappa AccuracySD  KappaSD Selected
+#          4   0.9939 0.9874   0.002571 0.005322        *
+#          8   0.9876 0.9743   0.003881 0.008009         
+# 
+# The top 4 variables (out of 4):
+#    usd_goal_real, usd_pledge, backers, main_category
+
+```
+```{r}
+#Training the model using Neural net in Caret 
+model_nnet<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='nnet')
+```
+```{r}
+#Making testSet predictions using our above model 
+predictions<-predict.train(object=model_nnet,testSet1[,predictors],type="raw")
+#Using the confusion Matrix function in Caret to get an overview of the performance analysis of our Nnet model 
+confusionMatrix(predictions,testSet1[,outcomeName])
+
+# As we can see that using Neural network we get an accuracy of 99.55% which is great. 
+```
+```{r}
+#This chunk takes 15  MINS TO RUN - 
+#This is probably the part where Caret stands out from any other available package. It provides the ability for implementing 200+ machine learning algorithms using consistent syntax. To get a list of all the algorithms that Caret supports -  
+#names(getModelInfo())
+
+# Next we use some more models from Caret to train our model - 
+
+#Using Gradient Boosting Machine 
+model_gbm<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='gbm')
+
+#Using knn 
+model_knn<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='knn')
+
+#Using Random Forests 
+model_rf<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='rf')
+
+#Using Logistic Regression 
+model_glm<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='glm')
+
+#Using Support Vector Machine
+model_svm<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='svmLinear')
+```
+```{r}
+predictions_knn<-predict.train(object=model_knn,testSet1[,predictors],type="raw")
+#Using the confusion Matrix function in Caret to get an overview of the performance analysis of our Nnet model 
+confusionMatrix(predictions_knn,testSet1[,outcomeName])
+
+#Knn gives us an accuracy of 73.5%
+```
+```{r}
+predictions_gbm<-predict.train(object=model_gbm,testSet1[,predictors],type="raw")
+#Using the confusion Matrix function in Caret to get an overview of the performance analysis of our Nnet model 
+confusionMatrix(predictions_gbm,testSet1[,outcomeName])
+
+#Gbm give an accuracy of 98.6% 
+```
+```{r}
+predictions_rf<-predict.train(object=model_rf,testSet1[,predictors],type="raw")
+#Using the confusion Matrix function in Caret to get an overview of the performance analysis of our Nnet model 
+confusionMatrix(predictions_rf,testSet1[,outcomeName])
+
+#Gbm is giving an accuracy of 99.5%
+```
+```{r}
+predictions_glm<-predict.train(object=model_glm,testSet1[,predictors],type="raw")
+#Using the confusion Matrix function in Caret to get an overview of the performance analysis of our Nnet model 
+confusionMatrix(predictions_glm,testSet1[,outcomeName])
+
+```
+```{r}
+predictions_svm<-predict.train(object=model_svm,testSet1[,predictors],type="raw")
+#Using the confusion Matrix function in Caret to get an overview of the performance analysis of our Nnet model 
+confusionMatrix(predictions_svm,testSet1[,outcomeName])
+
+#Support Vector machine is giving an accuracy of 87.7% 
+
+```
+```{r}
+#Using H20 framework in R - H20 is very fast and scalable machine learning platform 
+install.packages("statmod")
+install.packages("Rcurl")
+install.packages("jsonlite")
+
+install.packages("h2o")
+library(h2o)
+localH2O <- h2o.init(nthreads = -1)
+h2o.init()
+# we'll explore the power of different machine learning algorithms in H2O. First we establish a connection and  This commands tell H2O to use all the CPUs on the machine, which is recommended.
+
+```
+```{r}
+#Let's now transfer the data from R to h2o instance. It can be accomplished using as.h2o command.
+library(h2o)
+train.h2o <- as.h2o(trainSet)
+test.h2o <- as.h2o(testSet)
+```
+```{r}
+colnames(train.h2o)
+#dependent variable (state)
+y.dep <- 9
+
+#independent variables 
+x.indep <- c(1:8)
+```
+```{r}
+#Using Randon Forest in H20 
+
+#Random Forest
+system.time(
+  rforest.model <- h2o.randomForest(y=y.dep, x=x.indep, training_frame = train.h2o, ntrees = 1000, mtries = 3, max_depth = 4, seed = 1122)
+)
+
+#GBM model
+system.time(
+gbm.model <- h2o.gbm(y=y.dep, x=x.indep, training_frame = train.h2o, ntrees = 1000, max_depth = 4, learn_rate = 0.01, seed = 1122)
+)
+
+#Deep Learning Model 
+system.time(
+             dlearning.model <- h2o.deeplearning(y = y.dep,
+             x = x.indep,
+             training_frame = train.h2o,
+             epoch = 60,
+             hidden = c(100,100),
+             activation = "Rectifier",
+             seed = 1122
+             )
+)
+
+
+```
+```{r}
+#Checking the performance and predictions of Random forest model 
+#Checking which variables have importance for predicting the outcome - 
+h2o.varimp(rforest.model)
+#Running the prediction 
+system.time(predict.rforest <- as.data.frame(h2o.predict(rforest.model, test.h2o)))
+#Calculating accuracy using confusion matrix
+confusionMatrix(predict.rforest$predict,testSet$state)
+#Random forest gives an accuracy of 85.25% for the entire dataset ! 
+```
+```{r}
+#Checking the performance and predictions of GBM model 
+#Checking which variables have importance for predicting the outcome -
+ h2o.performance (gbm.model)
+
+#making prediction and writing submission file
+predict.gbm <- as.data.frame(h2o.predict(gbm.model, test.h2o))
+
+#Calculating accuracy using confusion matrix
+confusionMatrix(predict.gbm$predict,testSet$state)
+#Gradient boosting gives an accuracy of 95.01% for the entire dataset !
+
+```
+```{r}
+#Checking the performance and predictions of deep learning model 
+#Checking which variables have importance for predicting the outcome -
+
+h2o.performance(dlearning.model)
+
+#making predictions
+predict.dl2 <- as.data.frame(h2o.predict(dlearning.model, test.h2o))
+
+#Calculating accuracy using confusion matrix
+confusionMatrix(predict.dl2$predict,testSet$state)
+#Deep learning gives an accuracy of 98.08% for the entire dataset which is great !
+
+#We can still do parameter tuning in GBM , random forests and deep learning and obtain a higher accuracy .
+```
+
+
+
+
+
+
+
+
+
+
+
+
